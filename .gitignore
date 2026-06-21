@@ -1,0 +1,20 @@
+# Dependency directories
+node_modules/
+
+# Environment variables (CRITICAL TO IGNORE)
+.env
+.env.*.local
+
+# Build outputs
+dist/
+build/
+
+# IDE/OS files
+.vscode/
+.idea/
+.DS_Store
+
+# Logs
+logs
+*.log
+npm-debug.log*
