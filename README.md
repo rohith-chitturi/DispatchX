@@ -40,4 +40,4 @@ This project was built specifically to showcase how **Redis** can be used beyond
 
 ## 👨‍💻 Author
 
-Built by [Your Name] as a demonstration of backend engineering and distributed systems.
+Built by [Rohith Chitturi] as a demonstration of backend engineering and distributed systems.
