@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: dispatchx-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: dispatchx_user
+      POSTGRES_PASSWORD: dispatchx_password
+      POSTGRES_DB: dispatchx_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dispatchx_network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: dispatchx-redis
+    ports:
+      - "6379:6379"
+    # We enable persistence via RDB (save every 60 seconds if at least 1 key changed) 
+    # to ensure our state isn't totally lost on a container restart.
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - dispatchx_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  dispatchx_network:
+    driver: bridge
