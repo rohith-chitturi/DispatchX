@@ -25,7 +25,7 @@ app.get('/health', (req, res) => {
 
 // We will mount our feature routes here later:
 // app.use('/api/users', userRoutes);
-// app.use('/api/rides', rideRoutes);
+// app. use('/api/rides', rideRoutes);
 
 // ==========================================
 // Global Error Handler
@@ -33,7 +33,7 @@ app.get('/health', (req, res) => {
 // A centralized catch-all for any errors thrown in our controllers.
 // This prevents the application from returning raw stack traces to the client in production.
 app.use((err, req, res, next) => {
-  console.error('🔥 Unhandled Error:', err.message);
+  console.error('🔥 Unhandled  Error:', err.message);
   res.status(500).json({
     error: 'Internal Server Error',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong',
