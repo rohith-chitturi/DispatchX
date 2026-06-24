@@ -21,7 +21,7 @@ export class User {
       RETURNING id, name, email, role, created_at;
     `;
     const values = [name, email, role];
-    
+
     const { rows } = await query(text, values);
     return rows[0];
   }
