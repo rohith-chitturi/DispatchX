@@ -57,7 +57,7 @@ export class Ride {
    */
   static async findActiveRideForUser(userId) {
     const text = `
-      SELECT * FROM rides 
+      SELECT* FROM rides 
       WHERE (rider_id = $1 OR driver_id = $1) 
       AND status IN ('REQUESTED', 'ACCEPTED', 'IN_PROGRESS');
     `;
