@@ -60,7 +60,7 @@ export class LocationService {
       'ASC',
       'COUNT', limit
     );
-    
+
     return nearbyDrivers;
   }
 }
