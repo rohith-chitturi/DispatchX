@@ -4,6 +4,7 @@ import app from './app.js';
 import { config } from './config/env.js';
 import pool from './config/postgres.js';
 import { redisClient } from './config/redis.js';
+import { initializeWebSockets } from './websockets/socketHandler.js';
 
 // ==========================================
 // 1. Create HTTP Server
@@ -22,15 +23,8 @@ const io = new Server(httpServer, {
   }
 });
 
-// Basic connection logging for now. 
-// We will move this logic into a dedicated websocket handler later.
-io.on('connection', (socket) => {
-  console.log(`⚡ Client connected to Socket.IO: ${socket.id}`);
-
-  socket.on('disconnect', () => {
-    console.log(`🔌 Client disconnected: ${socket.id}`);
-  });
-});
+// Initialize the actual WebSocket Controller
+initializeWebSockets(io);
 
 // ==========================================
 // 3. Graceful Shutdown & Boot
