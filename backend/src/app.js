@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import rideRoutes from './routes/rideRoutes.js';
+import authRoutes from './routes/authRoutes.js';
 
 // ==========================================
 // Express App Initialization
@@ -25,6 +26,7 @@ app.get('/health', (req, res) => {
 });
 
 // We mount our feature routes here:
+app.use('/api/auth', authRoutes);
 app.use('/api/rides', rideRoutes);
 
 
