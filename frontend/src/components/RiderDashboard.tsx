@@ -1,184 +1,174 @@
 import React, { useState, useEffect } from 'react';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix Leaflet's default icon path issues in React/Vite by using custom Emoji Icons
+const riderIcon = new L.DivIcon({
+  className: 'bg-transparent text-3xl',
+  html: '🧍',
+  iconSize: [30, 30],
+  iconAnchor: [15, 15]
+});
+
+const driverIcon = new L.DivIcon({
+  className: 'bg-transparent text-4xl',
+  html: '🚕',
+  iconSize: [40, 40],
+  iconAnchor: [20, 20]
+});
+
+// Default Mock Location (Downtown New York)
+const DEFAULT_LAT = 40.7128;
+const DEFAULT_LON = -74.0060;
 
 /**
  * RiderDashboard
- * The core interface for riders. It triggers the REST API to start the dispatch
- * process, and listens to WebSockets for real-time driver assignment updates.
+ * A production-grade map interface for riders to request rides and track drivers in real-time.
  */
 export const RiderDashboard: React.FC = () => {
   const { socket, isConnected } = useSocket();
-  const { userId, token, logout } = useAuth();
+  const { token, logout } = useAuth();
   
   const [status, setStatus] = useState<'IDLE' | 'SEARCHING' | 'ASSIGNED'>('IDLE');
   const [rideId, setRideId] = useState<string | null>(null);
-  const [assignedDriverId, setAssignedDriverId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  
+  // Coordinates
+  const [riderLocation] = useState<[number, number]>([DEFAULT_LAT, DEFAULT_LON]);
+  const [driverLocation, setDriverLocation] = useState<[number, number] | null>(null);
 
-  // ==========================================
-  // WEBSOCKET LISTENERS
-  // ==========================================
   useEffect(() => {
     if (!socket) return;
 
     // Register as a rider securely
     socket.emit('register', { token });
 
-    // When the backend successfully assigns a driver (after the lock race is won)
-    // it will broadcast this event to the specific room for this ride.
-    socket.on('driver_assigned', ({ driverId }) => {
+    // When the backend successfully assigns a driver
+    socket.on('ride_assigned', (data) => {
+      console.log('Driver Assigned!', data);
       setStatus('ASSIGNED');
-      setAssignedDriverId(driverId);
+    });
+
+    // Real-time GPS stream from the assigned driver
+    socket.on('driver_location_update', (data) => {
+      console.log('Live GPS Received:', data);
+      setDriverLocation([data.lat, data.lon]);
     });
 
     return () => {
-      socket.off('driver_assigned');
+      socket.off('ride_assigned');
+      socket.off('driver_location_update');
     };
-  }, [socket, userId]);
+  }, [socket, token]);
 
-  // ==========================================
-  // REST API TRIGGER
-  // ==========================================
   const requestRide = async () => {
+    setStatus('SEARCHING');
     try {
-      setStatus('SEARCHING');
-      setError(null);
-
-      // We hardcode coordinates that are identical to the Driver's starting point
-      // so that they are guaranteed to be found within the 5km Redis GEOSEARCH radius.
-      const payload = {
-        riderId: userId,
-        pickupLat: 40.7128,
-        pickupLon: -74.0060,
-        dropoffLat: 40.7580,
-        dropoffLon: -73.9855
-      };
-
-      // 1. Trigger the standard HTTP REST API
       const response = await fetch('http://localhost:3000/api/rides/request', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          pickup_lat: riderLocation[0],
+          pickup_lon: riderLocation[1],
+          dropoff_lat: 40.7300,
+          dropoff_lon: -73.9900
+        })
       });
 
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to request ride');
-      }
-
-      setRideId(data.rideId);
+      setRideId(data.ride.id);
       
-      // 2. Tell the WebSocket to join the specific room for this Ride UUID
-      // so we can receive the 'driver_assigned' push notification.
-      socket?.emit('track_ride', { rideId: data.rideId });
+      // Join the specific socket room for this ride to receive GPS updates
+      socket?.emit('join_ride_room', data.ride.id);
 
-    } catch (err: any) {
-      setError(err.message);
+    } catch (error) {
+      console.error('Request failed:', error);
       setStatus('IDLE');
     }
   };
 
-  // ==========================================
-  // UI RENDER
-  // ==========================================
   return (
-    // We apply the 'radar-grid' class here to create the stunning map effect
-    <div className="min-h-screen bg-dispatch-black radar-grid flex flex-col items-center p-4">
+    <div className="h-screen w-full flex flex-col bg-black text-white relative font-sans">
       
-      {/* HEADER */}
-      <div className="w-full max-w-4xl flex justify-between items-center mb-8 bg-dispatch-gray/90 backdrop-blur-md border border-zinc-800 p-4 rounded-xl z-20 mt-4 shadow-2xl">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">👤</span>
-          <h2 className="text-xl font-bold tracking-tight">Rider Dashboard</h2>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-dispatch-success' : 'bg-dispatch-danger'}`} />
-            <span className="text-xs text-zinc-400 font-mono">
-              {isConnected ? 'Socket Connected' : 'Connecting...'}
-            </span>
+      {/* Top Navbar */}
+      <div className="absolute top-0 left-0 w-full z-[1000] p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
+        <h1 className="text-3xl font-black tracking-tight">
+          Dispatch<span className="text-dispatch-neon">X</span> <span className="text-zinc-500 font-medium text-lg">RIDER</span>
+        </h1>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <div className={`w-3 h-3 rounded-full animate-pulse ${isConnected ? 'bg-dispatch-success' : 'bg-dispatch-danger'}`} />
+            <span className="text-sm font-mono text-zinc-400">{isConnected ? 'CONNECTED' : 'DISCONNECTED'}</span>
           </div>
-          <button onClick={logout} className="text-sm bg-zinc-800 px-3 py-1 rounded hover:bg-zinc-700 transition">Exit</button>
+          <button onClick={logout} className="text-sm font-mono text-zinc-500 hover:text-white transition-colors">
+            LOGOUT
+          </button>
         </div>
       </div>
 
-      {/* MAIN RADAR UI */}
-      <div className="flex-1 flex flex-col items-center justify-center w-full relative">
-        
-        {/* Animated Radar Rings - Only visible while searching */}
-        {status === 'SEARCHING' && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-            <div className="w-64 h-64 border-[1px] border-dispatch-neon/40 rounded-full animate-ping-slow absolute" />
-            <div className="w-[24rem] h-[24rem] border-[1px] border-dispatch-neon/20 rounded-full animate-ping-slow absolute" style={{ animationDelay: '0.5s' }} />
-            <div className="w-[36rem] h-[36rem] border-[1px] border-dispatch-neon/10 rounded-full animate-ping-slow absolute" style={{ animationDelay: '1s' }} />
-          </div>
-        )}
-
-        {/* Central Interactive Hub */}
-        <div className="z-10 bg-black/70 backdrop-blur-2xl border border-white/10 p-10 rounded-[2rem] max-w-md w-full text-center shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+      {/* Real-time Map Background */}
+      <div className="absolute inset-0 z-0">
+        <MapContainer 
+          center={riderLocation} 
+          zoom={14} 
+          className="h-full w-full"
+          zoomControl={false}
+        >
+          {/* We use a sleek dark-mode map tile from CartoDB */}
+          <TileLayer
+            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          />
           
-          {error && (
-            <div className="bg-dispatch-danger/10 border border-dispatch-danger/50 text-dispatch-danger p-4 rounded-xl mb-6 text-sm">
-              {error}
-            </div>
-          )}
+          {/* Rider's Location Marker */}
+          <Marker position={riderLocation} icon={riderIcon}>
+            <Popup className="font-mono">Your Pickup Location</Popup>
+          </Marker>
 
+          {/* Driver's Live Location Marker */}
+          {driverLocation && (
+            <Marker position={driverLocation} icon={driverIcon}>
+              <Popup className="font-mono">Your Driver is Approaching!</Popup>
+            </Marker>
+          )}
+        </MapContainer>
+      </div>
+
+      {/* Bottom Action Panel */}
+      <div className="absolute bottom-0 left-0 w-full z-[1000] p-6 bg-gradient-to-t from-black via-black/90 to-transparent">
+        <div className="max-w-md mx-auto">
           {status === 'IDLE' && (
-            <div className="animate-slide-up">
-              <div className="text-7xl mb-6 transform transition-transform hover:scale-110 duration-300">📍</div>
-              <h1 className="text-3xl font-extrabold mb-3">Ready to go?</h1>
-              <p className="text-zinc-400 mb-8 leading-relaxed">
-                Tap below to trigger the REST API and initialize the Redis Geospatial dispatch engine.
-              </p>
-              <button 
-                onClick={requestRide}
-                className="w-full bg-white hover:bg-zinc-200 text-black font-black py-5 rounded-2xl transition-all transform active:scale-95 text-xl shadow-[0_0_30px_rgba(255,255,255,0.2)]"
-              >
-                REQUEST RIDE
-              </button>
-            </div>
+            <button 
+              onClick={requestRide}
+              className="w-full bg-white text-black font-black py-5 rounded-2xl text-xl shadow-[0_0_40px_rgba(255,255,255,0.3)] hover:scale-[1.02] transition-transform"
+            >
+              REQUEST RIDE NOW
+            </button>
           )}
 
           {status === 'SEARCHING' && (
-            <div className="animate-slide-up">
-              <div className="text-7xl mb-6 animate-pulse-slow">📡</div>
-              <h1 className="text-3xl font-extrabold text-dispatch-neon mb-3">Locating Drivers</h1>
-              <p className="text-dispatch-neon/80 mb-4 font-mono text-sm tracking-widest uppercase">Executing GEOSEARCH</p>
-              <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
-                Broadcasting ride request via Redis Pub/Sub to all vehicles within a 5km radius.
-              </p>
-              
-              <div className="w-full bg-zinc-900 rounded-full h-1.5 mb-2 overflow-hidden">
-                <div className="bg-dispatch-neon h-1.5 w-full animate-pulse-slow rounded-full" />
-              </div>
+            <div className="w-full bg-zinc-900/80 backdrop-blur-xl border border-dispatch-neon text-dispatch-neon font-black py-5 rounded-2xl text-xl flex items-center justify-center space-x-3">
+              <div className="w-6 h-6 border-4 border-dispatch-neon border-t-transparent rounded-full animate-spin" />
+              <span>SEARCHING FOR DRIVER...</span>
             </div>
           )}
 
           {status === 'ASSIGNED' && (
-            <div className="animate-slide-up">
-              <div className="text-7xl mb-6">🚘</div>
-              <h1 className="text-3xl font-extrabold text-dispatch-success mb-3">Driver Found!</h1>
-              <p className="text-zinc-300 mb-8 leading-relaxed">
-                Your driver successfully won the distributed lock race and is on the way.
-              </p>
-              
-              <div className="bg-zinc-900/50 border border-zinc-800 p-5 rounded-2xl text-left mb-8 shadow-inner">
-                <p className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Assigned Driver UUID</p>
-                <p className="font-mono text-dispatch-success text-sm truncate">{assignedDriverId}</p>
-              </div>
-
-              <button 
-                onClick={() => { setStatus('IDLE'); setRideId(null); setAssignedDriverId(null); }}
-                className="w-full border border-zinc-700 hover:bg-zinc-800 hover:border-zinc-500 text-white font-bold py-4 rounded-2xl transition-colors"
-              >
-                Complete & Reset
-              </button>
+            <div className="w-full bg-dispatch-success/20 backdrop-blur-xl border border-dispatch-success text-dispatch-success font-black py-5 rounded-2xl text-xl text-center shadow-[0_0_40px_rgba(0,255,100,0.2)]">
+              DRIVER INBOUND
+              <div className="text-xs font-mono font-normal mt-1 opacity-80">Tracking Live GPS on Map</div>
             </div>
           )}
         </div>
       </div>
+
     </div>
   );
 };
