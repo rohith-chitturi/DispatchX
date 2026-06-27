@@ -62,7 +62,7 @@ export const DriverDashboard: React.FC = () => {
           
           // Stream the new GPS coordinates to the Redis Geo-spatial index
           // If activeRide exists, the backend will also relay this to the rider!
-          socket.emit('location_update', { lat: newLoc[0], lon: newLoc[1], rideId: activeRide?.id });
+          socket.emit('location_update', { lat: newLoc[0], lon: newLoc[1], rideId: activeRide?.rideId });
           return nextIndex;
         });
       }, 3000);
@@ -95,7 +95,7 @@ export const DriverDashboard: React.FC = () => {
           'Authorization': `Bearer ${token}` 
         },
         body: JSON.stringify({
-          rideId: incomingRide.id,
+          rideId: incomingRide.rideId,
           driverLat: driverLocation[0],
           driverLon: driverLocation[1]
         })
@@ -114,9 +114,9 @@ export const DriverDashboard: React.FC = () => {
       setIncomingRide(null);
       
       // Notify the backend so it can tell the rider
-      socket?.emit('driver_accepted_ride', { rideId: incomingRide.id });
+      socket?.emit('driver_accepted_ride', { rideId: incomingRide.rideId });
       // Join the specific ride's WebSocket room so the rider can see our GPS updates
-      socket?.emit('join_ride_room', incomingRide.id);
+      socket?.emit('join_ride_room', incomingRide.rideId);
 
     } catch (error: any) {
       console.error('Failed to accept ride (Lock lost or error):', error);
