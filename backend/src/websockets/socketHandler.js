@@ -1,6 +1,7 @@
 import { LocationService } from '../services/LocationService.js';
 import { DispatchService } from '../services/DispatchService.js';
 import { redisSubscriber } from '../config/redis.js';
+import { query } from '../config/postgres.js';
 
 /**
  * Initializes all WebSocket listeners for the application.
@@ -34,11 +35,25 @@ export const initializeWebSockets = (io) => {
     console.log(`⚡ WebSocket Connected: ${socket.id}`);
 
     // Register the client. In a real app, this would use JWT verification.
-    socket.on('register', ({ userId, role }) => {
+    socket.on('register', async ({ userId, role }) => {
       // Place the socket into a private room. This makes it incredibly easy to target them later.
       socket.join(`${role.toLowerCase()}_${userId}`);
       socket.userId = userId;
       socket.role = role;
+
+      // [MOCK AUTH FIX]
+      // Because our frontend generates a random UUID in AuthContext instead of an actual login,
+      // Postgres will throw a Foreign Key Constraint error when we try to create/accept rides.
+      // We do a fast UPSERT here to ensure they exist in the database.
+      try {
+        await query(
+          `INSERT INTO users (id, name, email, role) VALUES ($1, 'Mock User', $1 || '@dispatch.local', $2) ON CONFLICT (id) DO NOTHING`,
+          [userId, role]
+        );
+      } catch (err) {
+        console.error('Failed to create mock user:', err);
+      }
+
       console.log(`✅ User ${userId} registered as ${role}`);
     });
 
