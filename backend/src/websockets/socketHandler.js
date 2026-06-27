@@ -65,48 +65,36 @@ export const initializeWebSockets = (io) => {
     // ----------------------------------------------------
     // DRIVER: Update Location (High Frequency)
     // ----------------------------------------------------
-    socket.on('update_location', async ({ lon, lat }) => {
+    socket.on('location_update', async ({ lon, lat, rideId }) => {
       if (socket.role === 'DRIVER' && socket.userId) {
         // This hits our Redis GEO structure
         await LocationService.updateDriverLocation(socket.userId, lon, lat);
-      }
-    });
-
-    // ----------------------------------------------------
-    // DRIVER: Accept Ride (Concurrency Critical)
-    // ----------------------------------------------------
-    socket.on('accept_ride', async ({ rideId }) => {
-      if (socket.role !== 'DRIVER') return;
-
-      try {
-        // Attempt to acquire the Redis Distributed Lock
-        const success = await DispatchService.acceptRide(rideId, socket.userId);
         
-        if (success) {
-          // Tell the driver they won the race
-          socket.emit('ride_accepted_success', { rideId });
-          
-          // Remove them from the active map so they stop receiving new requests
-          await LocationService.removeDriver(socket.userId);
-          
-          // Notify the Rider that their car is on the way
-          io.to(`ride_${rideId}`).emit('driver_assigned', { driverId: socket.userId });
-        } else {
-          // Tell the driver someone else beat them to it
-          socket.emit('ride_accepted_failed', { reason: 'Ride already taken or expired.' });
+        // If they have an active ride, stream it directly to the Rider!
+        if (rideId) {
+          io.to(`ride_${rideId}`).emit('driver_location_update', { lat, lon });
         }
-      } catch (error) {
-        console.error('Error in accept_ride:', error);
-        socket.emit('error', { message: 'Failed to process ride acceptance.' });
       }
     });
 
     // ----------------------------------------------------
-    // RIDER: Track Ride
+    // DRIVER: Notify Rider that Ride was Accepted
     // ----------------------------------------------------
-    socket.on('track_ride', ({ rideId }) => {
-      // The rider joins a room specific to their ride to receive updates
+    // Since the actual lock is handled via the REST API, the driver's client
+    // emits this immediately after getting a 200 OK from the API.
+    socket.on('driver_accepted_ride', ({ rideId }) => {
+      if (socket.role === 'DRIVER') {
+        io.to(`ride_${rideId}`).emit('ride_assigned', { driverId: socket.userId });
+      }
+    });
+
+    // ----------------------------------------------------
+    // RIDER / DRIVER: Join Ride Room
+    // ----------------------------------------------------
+    socket.on('join_ride_room', (rideId) => {
+      // Both Rider and Driver join this private room to exchange GPS streams
       socket.join(`ride_${rideId}`);
+      console.log(`📡 Socket ${socket.id} joined ride_${rideId}`);
     });
 
     // ----------------------------------------------------

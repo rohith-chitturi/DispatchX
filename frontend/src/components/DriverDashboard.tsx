@@ -61,7 +61,8 @@ export const DriverDashboard: React.FC = () => {
           setDriverLocation(newLoc);
           
           // Stream the new GPS coordinates to the Redis Geo-spatial index
-          socket.emit('location_update', { lat: newLoc[0], lon: newLoc[1] });
+          // If activeRide exists, the backend will also relay this to the rider!
+          socket.emit('location_update', { lat: newLoc[0], lon: newLoc[1], rideId: activeRide?.id });
           return nextIndex;
         });
       }, 3000);
@@ -112,6 +113,8 @@ export const DriverDashboard: React.FC = () => {
       setActiveRide(incomingRide);
       setIncomingRide(null);
       
+      // Notify the backend so it can tell the rider
+      socket?.emit('driver_accepted_ride', { rideId: incomingRide.id });
       // Join the specific ride's WebSocket room so the rider can see our GPS updates
       socket?.emit('join_ride_room', incomingRide.id);
 
