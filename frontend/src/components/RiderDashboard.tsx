@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
  */
 export const RiderDashboard: React.FC = () => {
   const { socket, isConnected } = useSocket();
-  const { userId, logout } = useAuth();
+  const { userId, token, logout } = useAuth();
   
   const [status, setStatus] = useState<'IDLE' | 'SEARCHING' | 'ASSIGNED'>('IDLE');
   const [rideId, setRideId] = useState<string | null>(null);
@@ -22,8 +22,8 @@ export const RiderDashboard: React.FC = () => {
   useEffect(() => {
     if (!socket) return;
 
-    // Register as a rider
-    socket.emit('register', { userId, role: 'RIDER' });
+    // Register as a rider securely
+    socket.emit('register', { token });
 
     // When the backend successfully assigns a driver (after the lock race is won)
     // it will broadcast this event to the specific room for this ride.

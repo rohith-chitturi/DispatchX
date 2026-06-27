@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
  */
 export const DriverDashboard: React.FC = () => {
   const { socket, isConnected } = useSocket();
-  const { userId, logout } = useAuth();
+  const { userId, token, logout } = useAuth();
   
   const [isOnline, setIsOnline] = useState(false);
   const [incomingRide, setIncomingRide] = useState<any>(null);
@@ -22,8 +22,8 @@ export const DriverDashboard: React.FC = () => {
     let interval: NodeJS.Timeout;
 
     if (isOnline && socket && isConnected) {
-      // 1a. Register the socket so the backend knows this is a Driver
-      socket.emit('register', { userId, role: 'DRIVER' });
+      // 1a. Register the socket securely using the JWT
+      socket.emit('register', { token });
 
       // 1b. Mock Coordinates (e.g., Downtown NY)
       let currentLat = 40.7128;
