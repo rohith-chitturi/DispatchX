@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import rideRoutes from './routes/rideRoutes.js';
 
 // ==========================================
 // Express App Initialization
@@ -23,9 +24,8 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', service: 'dispatchx-backend' });
 });
 
-// We will mount our feature routes here later:
-// app.use('/api/users', userRoutes);
-// app. use('/api/rides', rideRoutes);
+// We mount our feature routes here:
+app.use('/api/rides', rideRoutes);
 
 
 // Global Error Handler
