@@ -1,6 +1,7 @@
 import { Ride } from '../models/Ride.js';
 import { LocationService } from '../services/LocationService.js';
 import { DispatchService } from '../services/DispatchService.js';
+import { query } from '../config/postgres.js';
 
 /**
  * RideController
@@ -24,6 +25,15 @@ export class RideController {
       // ========================================================================
       // 2. PREVENT DOUBLE BOOKING (Data Integrity)
       // ========================================================================
+      
+      // [MOCK AUTH FIX] 
+      // Ensure the mock rider exists in the database before doing anything.
+      // We do this right inside the controller to guarantee they exist.
+      await query(
+        `INSERT INTO users (id, name, email, role) VALUES ($1, 'Mock Rider', $1 || '@dispatch.local', 'RIDER') ON CONFLICT (id) DO NOTHING`,
+        [riderId]
+      );
+
       // We hit PostgreSQL using our highly optimized Partial Index.
       // If they are already waiting for a driver or in a ride, block this request.
       const activeRide = await Ride.findActiveRideForUser(riderId);
