@@ -85,10 +85,10 @@ export const RiderDashboard: React.FC = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
 
-      setRideId(data.ride.id);
+      setRideId(data.rideId);
       
       // Join the specific socket room for this ride to receive GPS updates
-      socket?.emit('join_ride_room', data.ride.id);
+      socket?.emit('join_ride_room', data.rideId);
 
     } catch (error: any) {
       console.error('Request failed:', error);
