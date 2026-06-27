@@ -1,23 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+const driverIcon = new L.DivIcon({
+  className: 'bg-transparent text-4xl',
+  html: '🚕',
+  iconSize: [40, 40],
+  iconAnchor: [20, 20]
+});
+
+const riderIcon = new L.DivIcon({
+  className: 'bg-transparent text-3xl',
+  html: '🧍',
+  iconSize: [30, 30],
+  iconAnchor: [15, 15]
+});
+
+// A mock route path down Broadway, New York
+const DRIVER_ROUTE = [
+  [40.7180, -74.0020], // Start
+  [40.7170, -74.0030],
+  [40.7160, -74.0040],
+  [40.7150, -74.0050],
+  [40.7140, -74.0055],
+  [40.7128, -74.0060]  // End (Matches Rider default location)
+];
 
 /**
  * DriverDashboard
- * The core interface for drivers. It continuously streams mock GPS coordinates
- * to the backend and listens for Redis Pub/Sub broadcast events.
+ * Simulates a driver going online, receiving ride requests from Redis Pub/Sub,
+ * and visually driving towards the rider on a Leaflet map.
  */
 export const DriverDashboard: React.FC = () => {
   const { socket, isConnected } = useSocket();
-  const { userId, token, logout } = useAuth();
+  const { token, logout } = useAuth();
   
   const [isOnline, setIsOnline] = useState(false);
   const [incomingRide, setIncomingRide] = useState<any>(null);
-  const [activeRide, setActiveRide] = useState<string | null>(null);
+  const [activeRide, setActiveRide] = useState<any>(null);
+  
+  // Map State
+  const [driverLocation, setDriverLocation] = useState<[number, number]>(DRIVER_ROUTE[0] as [number, number]);
+  const [routeIndex, setRouteIndex] = useState(0);
 
-  // ==========================================
-  // 1. LOCATION BROADCASTING (Redis GEO)
-  // ==========================================
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
@@ -25,152 +53,179 @@ export const DriverDashboard: React.FC = () => {
       // 1a. Register the socket securely using the JWT
       socket.emit('register', { token });
 
-      // 1b. Mock Coordinates (e.g., Downtown NY)
-      let currentLat = 40.7128;
-      let currentLon = -74.0060;
-
-      // Every 3 seconds, fire coordinates to the backend to update the Redis GEO index.
+      // 1b. Start moving the car along the route every 3 seconds
       interval = setInterval(() => {
-        // Add slight random jitter to simulate the car driving
-        currentLat += (Math.random() - 0.5) * 0.001;
-        currentLon += (Math.random() - 0.5) * 0.001;
-
-        socket.emit('update_location', { lon: currentLon, lat: currentLat });
+        setRouteIndex((prevIndex) => {
+          const nextIndex = (prevIndex + 1) % DRIVER_ROUTE.length;
+          const newLoc = DRIVER_ROUTE[nextIndex] as [number, number];
+          setDriverLocation(newLoc);
+          
+          // Stream the new GPS coordinates to the Redis Geo-spatial index
+          socket.emit('location_update', { lat: newLoc[0], lon: newLoc[1] });
+          return nextIndex;
+        });
       }, 3000);
+
+      // Listen for incoming ride requests dispatched by the backend
+      socket.on('ride_request', (ride) => {
+        console.log('New Ride Request Received!', ride);
+        if (!activeRide) setIncomingRide(ride);
+      });
+
+    } else if (socket) {
+      socket.off('ride_request');
     }
 
-    return () => clearInterval(interval);
-  }, [isOnline, socket, isConnected, userId]);
-
-  // ==========================================
-  // 2. DISPATCH LISTENERS (Redis Pub/Sub)
-  // ==========================================
-  useEffect(() => {
-    if (!socket) return;
-
-    // Triggered when DispatchService.js publishes to this driver's Redis channel
-    socket.on('ride_request', (rideDetails) => {
-      setIncomingRide(rideDetails);
-      // Automatically hide the modal after 30 seconds to match the Redis TTL
-      setTimeout(() => setIncomingRide(null), 30000);
-    });
-
-    // Triggered if THIS driver wins the Distributed Lock race
-    socket.on('ride_accepted_success', ({ rideId }) => {
-      setIncomingRide(null);
-      setActiveRide(rideId);
-      setIsOnline(false); // Stop broadcasting location to the general pool
-    });
-
-    // Triggered if ANOTHER driver clicked accept 1 millisecond faster
-    socket.on('ride_accepted_failed', ({ reason }) => {
-      alert(`⚠️ You missed it! ${reason}`);
-      setIncomingRide(null);
-    });
-
     return () => {
-      socket.off('ride_request');
-      socket.off('ride_accepted_success');
-      socket.off('ride_accepted_failed');
+      clearInterval(interval);
+      socket?.off('ride_request');
     };
-  }, [socket]);
+  }, [isOnline, socket, isConnected, token, activeRide]);
 
-  const handleAcceptRide = () => {
-    if (socket && incomingRide) {
-      // Attempt to acquire the Redis Distributed Lock on the backend
-      socket.emit('accept_ride', { rideId: incomingRide.rideId });
+  const acceptRide = async () => {
+    if (!incomingRide) return;
+
+    try {
+      // Race condition! We must hit the REST API to secure the Redis Distributed Lock.
+      const response = await fetch('http://localhost:3000/api/rides/accept', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          rideId: incomingRide.id,
+          driverLat: driverLocation[0],
+          driverLon: driverLocation[1]
+        })
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error);
+      }
+
+      console.log('Successfully won the lock and accepted the ride!', data);
+      
+      // We won! Store the active ride and dismiss the incoming prompt.
+      setActiveRide(incomingRide);
+      setIncomingRide(null);
+      
+      // Join the specific ride's WebSocket room so the rider can see our GPS updates
+      socket?.emit('join_ride_room', incomingRide.id);
+
+    } catch (error: any) {
+      console.error('Failed to accept ride (Lock lost or error):', error);
+      alert(error.message);
+      setIncomingRide(null); // Clear it so they can wait for the next one
     }
   };
 
-  // ==========================================
-  // UI RENDER
-  // ==========================================
   return (
-    <div className="min-h-screen bg-dispatch-black p-4 flex flex-col items-center">
-      {/* HEADER */}
-      <div className="w-full max-w-2xl flex justify-between items-center mb-8 bg-dispatch-gray p-4 rounded-xl border border-zinc-800">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">🚘</span>
-          <h2 className="text-xl font-bold tracking-tight">Driver Terminal</h2>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            {/* Status dot */}
-            <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-dispatch-success' : 'bg-dispatch-danger'}`} />
-            <span className="text-xs text-zinc-400 font-mono">
-              {isConnected ? 'Socket Connected' : 'Connecting...'}
-            </span>
+    <div className="h-screen w-full flex flex-col bg-black text-white relative font-sans">
+      
+      {/* Top Navbar */}
+      <div className="absolute top-0 left-0 w-full z-[1000] p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
+        <h1 className="text-3xl font-black tracking-tight">
+          Dispatch<span className="text-dispatch-neon">X</span> <span className="text-zinc-500 font-medium text-lg">DRIVER</span>
+        </h1>
+        <div className="flex items-center space-x-4 pointer-events-auto">
+          <div className="flex items-center space-x-2">
+            <div className={`w-3 h-3 rounded-full animate-pulse ${isConnected ? 'bg-dispatch-success' : 'bg-dispatch-danger'}`} />
+            <span className="text-sm font-mono text-zinc-400">{isConnected ? 'CONNECTED' : 'DISCONNECTED'}</span>
           </div>
-          <button onClick={logout} className="text-sm bg-zinc-800 px-3 py-1 rounded hover:bg-zinc-700 transition">Exit</button>
+          <button onClick={logout} className="text-sm font-mono text-zinc-500 hover:text-white transition-colors">
+            LOGOUT
+          </button>
         </div>
       </div>
 
-      {/* MAIN CONTENT */}
-      {!activeRide ? (
-        <div className="flex flex-col items-center justify-center flex-1 mt-10">
-          <div className="text-center mb-12">
-            <h1 className={`text-6xl font-black tracking-tighter transition-colors duration-500 ${isOnline ? 'text-dispatch-success' : 'text-zinc-600'}`}>
-              {isOnline ? 'ONLINE' : 'OFFLINE'}
-            </h1>
-            <p className="text-zinc-400 mt-4 text-lg">
-              {isOnline ? 'Transmitting GPS to Redis Geo Index...' : 'Tap the button to start receiving rides'}
-            </p>
-          </div>
+      {/* Real-time Map Background */}
+      <div className="absolute inset-0 z-0">
+        <MapContainer 
+          center={driverLocation} 
+          zoom={15} 
+          className="h-full w-full"
+          zoomControl={false}
+        >
+          <TileLayer
+            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          />
+          
+          {/* Driver's Location Marker */}
+          <Marker position={driverLocation} icon={driverIcon}>
+            <Popup className="font-mono">Your Vehicle</Popup>
+          </Marker>
 
-          <button 
-            onClick={() => setIsOnline(!isOnline)}
-            className={`w-64 h-64 rounded-full text-3xl font-black tracking-widest transition-all duration-500 shadow-2xl ${
-              isOnline 
-                ? 'bg-dispatch-success/10 text-dispatch-success border-4 border-dispatch-success animate-pulse-slow shadow-[0_0_60px_rgba(16,185,129,0.2)]' 
-                : 'bg-zinc-900 text-zinc-500 border border-zinc-800 hover:bg-zinc-800'
-            }`}
-          >
-            {isOnline ? 'STOP' : 'START'}
-          </button>
-        </div>
-      ) : (
-        <div className="bg-dispatch-success/10 border border-dispatch-success rounded-2xl p-10 text-center animate-slide-up w-full max-w-2xl mt-20">
-          <div className="text-6xl mb-6">✅</div>
-          <h2 className="text-4xl font-bold text-dispatch-success mb-4">Ride Secured!</h2>
-          <p className="text-zinc-300 text-lg">You won the lock race. Navigate to the pickup location.</p>
-          <div className="bg-black/50 p-4 rounded-lg mt-6 inline-block border border-zinc-800">
-            <p className="font-mono text-sm text-zinc-400">Ride ID: {activeRide}</p>
-          </div>
-          <br/>
-          <button 
-            onClick={() => { setActiveRide(null); setIsOnline(true); }} 
-            className="mt-10 bg-dispatch-gray hover:bg-zinc-700 px-8 py-3 rounded-xl font-bold transition"
-          >
-            Complete Ride
-          </button>
-        </div>
-      )}
+          {/* Rider's Location Marker (Only visible when a ride is active) */}
+          {activeRide && (
+            <Marker position={[activeRide.pickup_lat, activeRide.pickup_lon]} icon={riderIcon}>
+              <Popup className="font-mono">Pickup Passenger Here</Popup>
+            </Marker>
+          )}
 
-      {/* INCOMING RIDE MODAL (Pub/Sub Event) */}
-      {incomingRide && !activeRide && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-slide-up">
-          <div className="bg-dispatch-black border-2 border-dispatch-neon rounded-3xl p-8 max-w-sm w-full shadow-[0_0_80px_rgba(14,165,233,0.3)]">
-            <div className="text-center mb-6">
-              <div className="text-5xl animate-ping-slow mb-4">🚨</div>
-              <h3 className="text-3xl font-black text-white">Ride Request!</h3>
-              <p className="text-dispatch-neon font-mono text-sm mt-2">Redis Pub/Sub Broadcast</p>
+          {/* Draw a line connecting the driver to the rider */}
+          {activeRide && (
+            <Polyline 
+              positions={[driverLocation, [activeRide.pickup_lat, activeRide.pickup_lon]]} 
+              color="#00FF64" 
+              dashArray="5, 10"
+              weight={4}
+            />
+          )}
+        </MapContainer>
+      </div>
+
+      {/* Bottom Action Panel */}
+      <div className="absolute bottom-0 left-0 w-full z-[1000] p-6 bg-gradient-to-t from-black via-black/90 to-transparent">
+        <div className="max-w-md mx-auto space-y-4">
+          
+          {incomingRide && !activeRide && (
+            <div className="bg-zinc-900/90 backdrop-blur-xl border border-dispatch-neon rounded-2xl p-6 shadow-[0_0_40px_rgba(0,255,255,0.2)] animate-slide-up">
+              <h3 className="text-dispatch-neon font-black text-xl mb-1">NEW RIDE REQUEST!</h3>
+              <p className="text-zinc-400 font-mono text-sm mb-6">Pickup: Downtown NY</p>
+              
+              <div className="flex space-x-3">
+                <button 
+                  onClick={acceptRide}
+                  className="flex-1 bg-white hover:bg-zinc-200 text-black font-black py-4 rounded-xl transition-transform transform active:scale-95"
+                >
+                  ACCEPT RIDE
+                </button>
+                <button 
+                  onClick={() => setIncomingRide(null)}
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-black py-4 rounded-xl transition-colors"
+                >
+                  DECLINE
+                </button>
+              </div>
             </div>
-            
+          )}
+
+          {activeRide && (
+            <div className="bg-dispatch-success/20 backdrop-blur-xl border border-dispatch-success rounded-2xl p-6 text-center shadow-[0_0_40px_rgba(0,255,100,0.2)]">
+              <h3 className="text-dispatch-success font-black text-2xl">EN ROUTE TO PICKUP</h3>
+              <p className="text-dispatch-success/80 font-mono text-sm mt-2">Streaming live GPS data to rider...</p>
+            </div>
+          )}
+
+          {!activeRide && !incomingRide && (
             <button 
-              onClick={handleAcceptRide}
-              className="w-full bg-dispatch-neon hover:bg-sky-400 text-black font-black text-xl py-5 rounded-2xl transition-all transform active:scale-95 shadow-[0_0_20px_rgba(14,165,233,0.5)]"
+              onClick={() => setIsOnline(!isOnline)}
+              className={`w-full font-black py-5 rounded-2xl text-xl transition-all shadow-lg ${
+                isOnline 
+                  ? 'bg-dispatch-danger hover:bg-red-600 text-white shadow-dispatch-danger/30' 
+                  : 'bg-white hover:bg-zinc-200 text-black shadow-white/30'
+              }`}
             >
-              ACCEPT RIDE
+              {isOnline ? 'GO OFFLINE' : 'GO ONLINE'}
             </button>
-            <button 
-              onClick={() => setIncomingRide(null)}
-              className="w-full mt-4 text-zinc-500 hover:text-white py-3 rounded-xl transition"
-            >
-              Ignore
-            </button>
-          </div>
+          )}
         </div>
-      )}
+      </div>
+
     </div>
   );
 };
