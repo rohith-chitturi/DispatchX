@@ -47,8 +47,8 @@ export const initializeWebSockets = (io) => {
       // We do a fast UPSERT here to ensure they exist in the database.
       try {
         await query(
-          `INSERT INTO users (id, name, email, role) VALUES ($1, 'Mock User', $1 || '@dispatch.local', $2) ON CONFLICT (id) DO NOTHING`,
-          [userId, role]
+          `INSERT INTO users (id, name, email, role) VALUES ($1, 'Mock User', $2, $3) ON CONFLICT (id) DO NOTHING`,
+          [userId, `${userId}@dispatch.local`, role]
         );
       } catch (err) {
         console.error('Failed to create mock user:', err);
