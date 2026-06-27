@@ -55,7 +55,9 @@ export class RideController {
 
       if (nearbyDrivers.length === 0) {
         // No drivers online nearby. 
-        // We could update Postgres status to CANCELLED here depending on business rules.
+        // We MUST update Postgres status to CANCELLED to prevent the user from being stuck.
+        await Ride.cancelRide(ride.id);
+        
         return res.status(404).json({ 
           error: 'No drivers available in your area right now.',
           rideId: ride.id 

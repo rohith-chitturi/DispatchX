@@ -53,6 +53,20 @@ export class Ride {
   }
 
   /**
+   * Cancel a requested ride (e.g., if no drivers are available).
+   */
+  static async cancelRide(rideId) {
+    const text = `
+      UPDATE rides 
+      SET status = 'CANCELLED' 
+      WHERE id = $1 AND status = 'REQUESTED'
+      RETURNING *;
+    `;
+    const { rows } = await query(text, [rideId]);
+    return rows[0];
+  }
+
+  /**
    * Fast lookup using our Partial Index to check if a user is currently busy.
    */
   static async findActiveRideForUser(userId) {

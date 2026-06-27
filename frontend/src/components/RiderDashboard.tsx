@@ -34,6 +34,7 @@ export const RiderDashboard: React.FC = () => {
   
   const [status, setStatus] = useState<'IDLE' | 'SEARCHING' | 'ASSIGNED'>('IDLE');
   const [rideId, setRideId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   // Coordinates
   const [riderLocation] = useState<[number, number]>([DEFAULT_LAT, DEFAULT_LON]);
@@ -65,6 +66,7 @@ export const RiderDashboard: React.FC = () => {
 
   const requestRide = async () => {
     setStatus('SEARCHING');
+    setErrorMessage(null);
     try {
       const response = await fetch('http://localhost:3000/api/rides/request', {
         method: 'POST',
@@ -88,8 +90,9 @@ export const RiderDashboard: React.FC = () => {
       // Join the specific socket room for this ride to receive GPS updates
       socket?.emit('join_ride_room', data.ride.id);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Request failed:', error);
+      setErrorMessage(error.message || 'An unknown error occurred.');
       setStatus('IDLE');
     }
   };
@@ -144,6 +147,12 @@ export const RiderDashboard: React.FC = () => {
       {/* Bottom Action Panel */}
       <div className="absolute bottom-0 left-0 w-full z-[1000] p-6 bg-gradient-to-t from-black via-black/90 to-transparent">
         <div className="max-w-md mx-auto">
+          {errorMessage && (
+            <div className="mb-4 bg-red-500/20 border border-red-500 text-red-100 p-4 rounded-xl text-sm font-mono backdrop-blur-md">
+              ⚠️ {errorMessage}
+            </div>
+          )}
+
           {status === 'IDLE' && (
             <button 
               onClick={requestRide}
