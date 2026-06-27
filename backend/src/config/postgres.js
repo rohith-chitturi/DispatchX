@@ -39,7 +39,7 @@ export const query = async (text, params) => {
   try {
     const res = await pool.query(text, params);
     const duration = Date.now() - start;
-    
+
     // Simple performance monitoring in development mode
     if (config.NODE_ENV === 'development') {
       console.log(`[DB] executed query: { duration: ${duration}ms, rows: ${res.rowCount} }`);
