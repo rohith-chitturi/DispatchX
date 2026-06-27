@@ -66,14 +66,6 @@ export class DispatchService {
       // 2. UPDATE POSTGRESQL (Source of Truth)
       // ========================================================================
       
-      // [MOCK AUTH FIX] Ensure the mock driver exists in the database
-      // Because the driver's UUID is randomly generated on the frontend,
-      // Postgres will throw a Foreign Key Constraint when we assign them to the ride.
-      await query(
-        `INSERT INTO users (id, name, email, role) VALUES ($1, 'Mock Driver', $2, 'DRIVER') ON CONFLICT (id) DO NOTHING`,
-        [driverId, `${driverId}@dispatch.local`]
-      );
-
       // The lock is ours! Safely update the persistent database.
       // The Ride.assignDriver method has a defensive WHERE status = 'REQUESTED' check as a backup.
       const assignedRide = await Ride.assignDriver(rideId, driverId);

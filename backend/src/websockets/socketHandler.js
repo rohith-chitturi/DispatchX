@@ -1,7 +1,9 @@
 import { LocationService } from '../services/LocationService.js';
 import { DispatchService } from '../services/DispatchService.js';
 import { redisSubscriber } from '../config/redis.js';
-import { query } from '../config/postgres.js';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dispatchx_super_secret_dev_key_2026';
 
 /**
  * Initializes all WebSocket listeners for the application.
@@ -35,26 +37,29 @@ export const initializeWebSockets = (io) => {
     console.log(`⚡ WebSocket Connected: ${socket.id}`);
 
     // Register the client. In a real app, this would use JWT verification.
-    socket.on('register', async ({ userId, role }) => {
-      // Place the socket into a private room. This makes it incredibly easy to target them later.
-      socket.join(`${role.toLowerCase()}_${userId}`);
-      socket.userId = userId;
-      socket.role = role;
-
-      // [MOCK AUTH FIX]
-      // Because our frontend generates a random UUID in AuthContext instead of an actual login,
-      // Postgres will throw a Foreign Key Constraint error when we try to create/accept rides.
-      // We do a fast UPSERT here to ensure they exist in the database.
+    // Register the client securely using a JWT token provided by the frontend
+    socket.on('register', ({ token }) => {
       try {
-        await query(
-          `INSERT INTO users (id, name, email, role) VALUES ($1, 'Mock User', $2, $3) ON CONFLICT (id) DO NOTHING`,
-          [userId, `${userId}@dispatch.local`, role]
-        );
-      } catch (err) {
-        console.error('Failed to create mock user:', err);
-      }
+        if (!token) {
+          return socket.emit('error', { message: 'Authentication token missing.' });
+        }
 
-      console.log(`✅ User ${userId} registered as ${role}`);
+        // Verify the JWT token cryptographically
+        const decoded = jwt.verify(token, JWT_SECRET);
+        
+        const userId = decoded.id;
+        const role = decoded.role;
+
+        // Place the socket into a private room based on their verified role and ID
+        socket.join(`${role.toLowerCase()}_${userId}`);
+        socket.userId = userId;
+        socket.role = role;
+
+        console.log(`✅ User ${userId} registered as ${role} (JWT Verified)`);
+      } catch (err) {
+        console.error('❌ Invalid JWT token:', err.message);
+        socket.emit('error', { message: 'Invalid or expired token. Please log in again.' });
+      }
     });
 
     // ----------------------------------------------------
