@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { RideController } from '../controllers/RideController.js';
+import { requireAuth } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
@@ -8,7 +9,11 @@ const router = Router();
 // ==========================================
 
 // POST /api/rides/request
-// Triggers the entire dispatch lifecycle.
-router.post('/request', RideController.requestRide);
+// Requires JWT Authorization
+router.post('/request', requireAuth, RideController.requestRide);
+
+// POST /api/rides/accept
+// Requires JWT Authorization
+router.post('/accept', requireAuth, RideController.acceptRide);
 
 export default router;

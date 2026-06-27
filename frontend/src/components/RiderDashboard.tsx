@@ -73,10 +73,10 @@ export const RiderDashboard: React.FC = () => {
           'Authorization': `Bearer ${token}` 
         },
         body: JSON.stringify({
-          pickup_lat: riderLocation[0],
-          pickup_lon: riderLocation[1],
-          dropoff_lat: 40.7300,
-          dropoff_lon: -73.9900
+          pickupLat: riderLocation[0],
+          pickupLon: riderLocation[1],
+          dropoffLat: 40.7300,
+          dropoffLon: -73.9900
         })
       });
 

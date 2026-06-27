@@ -15,11 +15,13 @@ export class RideController {
    */
   static async requestRide(req, res, next) {
     try {
-      const { riderId, pickupLat, pickupLon, dropoffLat, dropoffLon } = req.body;
+      // The riderId is securely injected by our JWT middleware
+      const riderId = req.user.id;
+      const { pickupLat, pickupLon, dropoffLat, dropoffLon } = req.body;
 
       // 1. Basic Validation (In production, use Zod or Joi)
-      if (!riderId || !pickupLat || !pickupLon) {
-        return res.status(400).json({ error: 'Missing required fields' });
+      if (!pickupLat || !pickupLon) {
+        return res.status(400).json({ error: 'Missing required fields: pickupLat, pickupLon' });
       }
 
       // ========================================================================
@@ -84,6 +86,38 @@ export class RideController {
 
     } catch (error) {
       // Pass any unexpected DB/Redis errors to the Global Error Handler in app.js
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/rides/accept
+   * Triggered when a driver accepts an incoming ride.
+   */
+  static async acceptRide(req, res, next) {
+    try {
+      const driverId = req.user.id;
+      const { rideId } = req.body;
+
+      if (!rideId) {
+        return res.status(400).json({ error: 'Missing rideId' });
+      }
+
+      // 1. Delegate to the DispatchService which handles the Redis distributed lock
+      // and Postgres updates.
+      const success = await DispatchService.acceptRide(rideId, driverId);
+
+      if (!success) {
+        // HTTP 409 Conflict: Another driver got to it first
+        return res.status(409).json({ error: 'Ride no longer available or lock failed.' });
+      }
+
+      return res.status(200).json({
+        message: 'Ride accepted successfully',
+        rideId
+      });
+
+    } catch (error) {
       next(error);
     }
   }
