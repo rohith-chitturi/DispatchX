@@ -12,8 +12,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   userId: null,
   role: null,
-  login: () => {},
-  logout: () => {},
+  login: () => { },
+  logout: () => { },
 });
 
 /**
@@ -48,7 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Generate a secure UUID natively in the browser (no external libraries needed)
     // In production, this ID would come from the PostgreSQL users table.
     const newUserId = crypto.randomUUID();
-    
+
     setUserId(newUserId);
     setRole(selectedRole);
 
