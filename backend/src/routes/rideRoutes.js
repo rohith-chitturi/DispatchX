@@ -17,3 +17,5 @@ router.post('/request', requireAuth, RideController.requestRide);
 router.post('/accept', requireAuth, RideController.acceptRide);
 
 export default router;
+
+
