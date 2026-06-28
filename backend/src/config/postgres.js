@@ -53,3 +53,5 @@ export const query = async (text, params) => {
 
 // Export the pool directly for advanced use-cases like SQL Transactions
 export default pool;
+
+
