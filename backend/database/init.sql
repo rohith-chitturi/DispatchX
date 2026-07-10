@@ -54,6 +54,9 @@ CREATE TABLE rides (
     -- Final price of the ride. Nullable until COMPLETED.
     fare DECIMAL(10, 2),
     
+    -- 5-star rating given by the rider. Nullable until rated.
+    rating INT,
+    
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
