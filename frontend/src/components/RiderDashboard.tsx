@@ -39,6 +39,7 @@ export const RiderDashboard: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [receiptFare, setReceiptFare] = useState<string | null>(null);
+  const [completedRideId, setCompletedRideId] = useState<string | null>(null);
   
   // Coordinates
   const [riderLocation] = useState<[number, number]>([DEFAULT_LAT, DEFAULT_LON]);
@@ -73,6 +74,7 @@ export const RiderDashboard: React.FC = () => {
       console.log('Ride completed by driver!', data);
       setStatus('IDLE');
       setDriverLocation(null);
+      setCompletedRideId(rideId); // Store before clearing
       setRideId(null);
       if (data && data.fare) {
         setReceiptFare(data.fare);
@@ -254,7 +256,11 @@ export const RiderDashboard: React.FC = () => {
       <ReceiptModal 
         isOpen={!!receiptFare} 
         fare={receiptFare} 
-        onClose={() => setReceiptFare(null)} 
+        rideId={completedRideId}
+        onClose={() => {
+          setReceiptFare(null);
+          setCompletedRideId(null);
+        }} 
       />
 
     </div>
