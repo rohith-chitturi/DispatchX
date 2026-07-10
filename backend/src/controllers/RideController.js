@@ -170,9 +170,20 @@ export class RideController {
         return res.status(404).json({ error: 'Active ride not found for this user.' });
       }
 
+      // Calculate approximate fare based on distance (Haversine simplified)
+      const dx = activeRide.pickup_lon - activeRide.dropoff_lon;
+      const dy = activeRide.pickup_lat - activeRide.dropoff_lat;
+      const distanceKm = Math.sqrt(dx * dx + dy * dy) * 111.32; // ~111.32 km per degree
+      
+      const fare = (2.50 + (distanceKm * 1.50)).toFixed(2); // $2.50 base + $1.50/km
+
       await Ride.completeRide(rideId);
 
-      return res.status(200).json({ message: 'Ride completed successfully' });
+      return res.status(200).json({ 
+        message: 'Ride completed successfully',
+        fare,
+        distanceKm: distanceKm.toFixed(2)
+      });
     } catch (error) {
       next(error);
     }
