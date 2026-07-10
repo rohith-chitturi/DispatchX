@@ -177,9 +177,15 @@ export const DriverDashboard: React.FC = () => {
       
       {/* Top Navbar */}
       <div className="absolute top-0 left-0 w-full z-[1000] p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
-        <h1 className="text-3xl font-black tracking-tight">
-          Dispatch<span className="text-dispatch-neon">X</span> <span className="text-zinc-500 font-medium text-lg">DRIVER</span>
-        </h1>
+        <div className="flex items-center space-x-4">
+          <h1 className="text-3xl font-black tracking-tight">
+            Dispatch<span className="text-dispatch-neon">X</span> <span className="text-zinc-500 font-medium text-lg">DRIVER</span>
+          </h1>
+          <div className="bg-zinc-800/80 backdrop-blur-md px-3 py-1 rounded-lg border border-zinc-700 flex items-center space-x-1">
+            <span className="text-yellow-400 text-sm">★</span>
+            <span className="text-white font-black text-sm">5.0</span>
+          </div>
+        </div>
         <div className="flex items-center space-x-4 pointer-events-auto">
           <div className="flex items-center space-x-2">
             <div className={`w-3 h-3 rounded-full animate-pulse ${isConnected ? 'bg-dispatch-success' : 'bg-dispatch-danger'}`} />
