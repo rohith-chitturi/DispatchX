@@ -106,6 +106,20 @@ export class Ride {
     const { rows } = await query(text, [userId]);
     return rows;
   }
+
+  /**
+   * Rate a completed ride.
+   */
+  static async rateRide(rideId, rating) {
+    const text = `
+      UPDATE rides 
+      SET rating = $1 
+      WHERE id = $2 AND status = 'COMPLETED'
+      RETURNING *;
+    `;
+    const { rows } = await query(text, [rating, rideId]);
+    return rows[0];
+  }
 }
 
 
