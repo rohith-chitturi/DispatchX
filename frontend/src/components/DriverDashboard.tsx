@@ -220,7 +220,7 @@ export const DriverDashboard: React.FC = () => {
 
           {/* Rider's Location Marker (Only visible when a ride is active) */}
           {activeRide && (
-            <Marker position={[activeRide.pickup_lat, activeRide.pickup_lon]} icon={riderIcon}>
+            <Marker position={[activeRide.pickupLat, activeRide.pickupLon]} icon={riderIcon}>
               <Popup className="font-mono">Pickup Passenger Here</Popup>
             </Marker>
           )}
@@ -228,7 +228,7 @@ export const DriverDashboard: React.FC = () => {
           {/* Draw a line connecting the driver to the rider */}
           {activeRide && (
             <Polyline 
-              positions={[driverLocation, [activeRide.pickup_lat, activeRide.pickup_lon]]} 
+              positions={[driverLocation, [activeRide.pickupLat, activeRide.pickupLon]]} 
               color="#00FF64" 
               dashArray="5, 10"
               weight={4}
