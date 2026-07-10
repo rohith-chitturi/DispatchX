@@ -53,6 +53,20 @@ export class Ride {
   }
 
   /**
+   * Phase 4: Driver completes the ride.
+   */
+  static async completeRide(rideId) {
+    const text = `
+      UPDATE rides 
+      SET status = 'COMPLETED' 
+      WHERE id = $1 AND status IN ('ACCEPTED', 'IN_PROGRESS')
+      RETURNING *;
+    `;
+    const { rows } = await query(text, [rideId]);
+    return rows[0];
+  }
+
+  /**
    * Cancel a requested ride (e.g., if no drivers are available).
    */
   static async cancelRide(rideId) {

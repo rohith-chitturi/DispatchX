@@ -98,6 +98,17 @@ export const initializeWebSockets = (io) => {
     });
 
     // ----------------------------------------------------
+    // Ride Lifecycle Events (Cancellation / Completion)
+    // ----------------------------------------------------
+    socket.on('ride_cancelled', ({ rideId }) => {
+      io.to(`ride_${rideId}`).emit('ride_cancelled_event');
+    });
+
+    socket.on('ride_completed', ({ rideId }) => {
+      io.to(`ride_${rideId}`).emit('ride_completed_event');
+    });
+
+    // ----------------------------------------------------
     // Disconnect Handler
     // ----------------------------------------------------
     socket.on('disconnect', async () => {

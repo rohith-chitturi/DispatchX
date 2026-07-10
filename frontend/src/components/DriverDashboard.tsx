@@ -73,13 +73,28 @@ export const DriverDashboard: React.FC = () => {
         if (!activeRide) setIncomingRide(ride);
       });
 
+      socket.on('ride_cancelled_event', () => {
+        console.log('Ride was cancelled by the rider');
+        setActiveRide(null);
+        alert('The rider cancelled the request.');
+      });
+
+      socket.on('ride_completed_event', () => {
+        console.log('Ride completed successfully');
+        setActiveRide(null);
+      });
+
     } else if (socket) {
       socket.off('ride_request');
+      socket.off('ride_cancelled_event');
+      socket.off('ride_completed_event');
     }
 
     return () => {
       clearInterval(interval);
       socket?.off('ride_request');
+      socket?.off('ride_cancelled_event');
+      socket?.off('ride_completed_event');
     };
   }, [isOnline, socket, isConnected, token, activeRide]);
 
@@ -122,6 +137,35 @@ export const DriverDashboard: React.FC = () => {
       console.error('Failed to accept ride (Lock lost or error):', error);
       alert(error.message);
       setIncomingRide(null); // Clear it so they can wait for the next one
+    }
+  };
+
+  const completeRide = async () => {
+    if (!activeRide) return;
+
+    try {
+      const response = await fetch('http://localhost:3000/api/rides/complete', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ rideId: activeRide.rideId })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error);
+      }
+
+      // Notify backend via WebSocket so rider UI resets
+      socket?.emit('ride_completed', { rideId: activeRide.rideId });
+      
+      setActiveRide(null);
+      
+    } catch (error: any) {
+      console.error('Failed to complete ride:', error);
+      alert(error.message);
     }
   };
 
@@ -208,9 +252,18 @@ export const DriverDashboard: React.FC = () => {
           )}
 
           {activeRide && (
-            <div className="bg-dispatch-success/20 backdrop-blur-xl border border-dispatch-success rounded-2xl p-6 text-center shadow-[0_0_40px_rgba(0,255,100,0.2)]">
-              <h3 className="text-dispatch-success font-black text-2xl">EN ROUTE TO PICKUP</h3>
-              <p className="text-dispatch-success/80 font-mono text-sm mt-2">Streaming live GPS data to rider...</p>
+            <div className="flex flex-col space-y-3">
+              <div className="bg-dispatch-success/20 backdrop-blur-xl border border-dispatch-success rounded-2xl p-6 text-center shadow-[0_0_40px_rgba(0,255,100,0.2)]">
+                <h3 className="text-dispatch-success font-black text-2xl">EN ROUTE TO PICKUP</h3>
+                <p className="text-dispatch-success/80 font-mono text-sm mt-2">Streaming live GPS data to rider...</p>
+              </div>
+              
+              <button 
+                onClick={completeRide}
+                className="w-full bg-white hover:bg-zinc-200 text-black font-black py-4 rounded-xl transition-transform transform active:scale-95"
+              >
+                COMPLETE DROPOFF
+              </button>
             </div>
           )}
 

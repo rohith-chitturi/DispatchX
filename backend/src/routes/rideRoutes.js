@@ -15,9 +15,7 @@ router.post('/request', requireAuth, RideController.requestRide);
 // POST /api/rides/accept
 // Requires JWT Authorization
 router.post('/accept', requireAuth, RideController.acceptRide);
+router.post('/cancel', requireAuth, RideController.cancelRequest);
+router.post('/complete', requireAuth, RideController.completeRide);
 
 export default router;
-
-
-
-

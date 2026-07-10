@@ -58,9 +58,25 @@ export const RiderDashboard: React.FC = () => {
       setDriverLocation([data.lat, data.lon]);
     });
 
+    socket.on('ride_cancelled_event', () => {
+      console.log('Ride was cancelled');
+      setStatus('IDLE');
+      setDriverLocation(null);
+      setRideId(null);
+    });
+
+    socket.on('ride_completed_event', () => {
+      console.log('Ride completed by driver!');
+      setStatus('IDLE');
+      setDriverLocation(null);
+      setRideId(null);
+    });
+
     return () => {
       socket.off('ride_assigned');
       socket.off('driver_location_update');
+      socket.off('ride_cancelled_event');
+      socket.off('ride_completed_event');
     };
   }, [socket, token]);
 
@@ -94,6 +110,35 @@ export const RiderDashboard: React.FC = () => {
       console.error('Request failed:', error);
       setErrorMessage(error.message || 'An unknown error occurred.');
       setStatus('IDLE');
+    }
+  };
+
+  const cancelRide = async () => {
+    if (!rideId) return;
+    try {
+      const response = await fetch('http://localhost:3000/api/rides/cancel', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ rideId })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error);
+      }
+
+      // Notify the room via WebSocket so backend/driver clears state
+      socket?.emit('ride_cancelled', { rideId });
+      
+      setStatus('IDLE');
+      setDriverLocation(null);
+      setRideId(null);
+    } catch (error: any) {
+      console.error('Failed to cancel ride:', error);
+      setErrorMessage(error.message || 'Could not cancel ride.');
     }
   };
 
@@ -163,16 +208,32 @@ export const RiderDashboard: React.FC = () => {
           )}
 
           {status === 'SEARCHING' && (
-            <div className="w-full bg-zinc-900/80 backdrop-blur-xl border border-dispatch-neon text-dispatch-neon font-black py-5 rounded-2xl text-xl flex items-center justify-center space-x-3">
-              <div className="w-6 h-6 border-4 border-dispatch-neon border-t-transparent rounded-full animate-spin" />
-              <span>SEARCHING FOR DRIVER...</span>
+            <div className="flex space-x-3">
+              <div className="flex-1 bg-zinc-900/80 backdrop-blur-xl border border-dispatch-neon text-dispatch-neon font-black py-5 rounded-xl text-lg flex items-center justify-center space-x-3">
+                <div className="w-5 h-5 border-4 border-dispatch-neon border-t-transparent rounded-full animate-spin" />
+                <span>SEARCHING...</span>
+              </div>
+              <button 
+                onClick={cancelRide}
+                className="bg-red-500/20 border border-red-500 hover:bg-red-500/40 text-red-400 font-black px-6 rounded-xl transition-colors"
+              >
+                CANCEL
+              </button>
             </div>
           )}
 
           {status === 'ASSIGNED' && (
-            <div className="w-full bg-dispatch-success/20 backdrop-blur-xl border border-dispatch-success text-dispatch-success font-black py-5 rounded-2xl text-xl text-center shadow-[0_0_40px_rgba(0,255,100,0.2)]">
-              DRIVER INBOUND
-              <div className="text-xs font-mono font-normal mt-1 opacity-80">Tracking Live GPS on Map</div>
+            <div className="flex flex-col space-y-3">
+              <div className="w-full bg-dispatch-success/20 backdrop-blur-xl border border-dispatch-success text-dispatch-success font-black py-5 rounded-xl text-xl text-center shadow-[0_0_40px_rgba(0,255,100,0.2)]">
+                DRIVER INBOUND
+                <div className="text-xs font-mono font-normal mt-1 opacity-80">Tracking Live GPS on Map</div>
+              </div>
+              <button 
+                onClick={cancelRide}
+                className="w-full bg-red-500/10 border border-red-500/50 hover:bg-red-500/30 text-red-400 font-black py-3 rounded-xl transition-colors text-sm"
+              >
+                CANCEL RIDE
+              </button>
             </div>
           )}
         </div>

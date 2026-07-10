@@ -123,6 +123,60 @@ export class RideController {
       next(error);
     }
   }
+
+  /**
+   * POST /api/rides/cancel
+   * Triggered when a rider cancels their request.
+   */
+  static async cancelRequest(req, res, next) {
+    try {
+      const { rideId } = req.body;
+      const riderId = req.user.id;
+
+      if (!rideId) {
+        return res.status(400).json({ error: 'Missing rideId' });
+      }
+
+      // Ensure the ride actually belongs to the rider before cancelling
+      const activeRide = await Ride.findActiveRideForUser(riderId);
+      if (!activeRide || activeRide.id !== rideId) {
+        return res.status(404).json({ error: 'Active ride not found for this user.' });
+      }
+
+      await Ride.cancelRide(rideId);
+      
+      return res.status(200).json({ message: 'Ride cancelled successfully' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/rides/complete
+   * Triggered when a driver completes a dropoff.
+   */
+  static async completeRide(req, res, next) {
+    try {
+      const { rideId } = req.body;
+      const driverId = req.user.id;
+
+      if (!rideId) {
+        return res.status(400).json({ error: 'Missing rideId' });
+      }
+
+      // Ensure the ride actually belongs to the driver
+      const activeRide = await Ride.findActiveRideForUser(driverId);
+      if (!activeRide || activeRide.id !== rideId) {
+        return res.status(404).json({ error: 'Active ride not found for this user.' });
+      }
+
+      await Ride.completeRide(rideId);
+
+      return res.status(200).json({ message: 'Ride completed successfully' });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 
