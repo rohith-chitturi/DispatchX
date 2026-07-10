@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { RideHistory } from './RideHistory';
+import { ReceiptModal } from './ReceiptModal';
 
 // Fix Leaflet's default icon path issues in React/Vite by using custom Emoji Icons
 const riderIcon = new L.DivIcon({
@@ -37,6 +38,7 @@ export const RiderDashboard: React.FC = () => {
   const [rideId, setRideId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [receiptFare, setReceiptFare] = useState<string | null>(null);
   
   // Coordinates
   const [riderLocation] = useState<[number, number]>([DEFAULT_LAT, DEFAULT_LON]);
@@ -67,11 +69,14 @@ export const RiderDashboard: React.FC = () => {
       setRideId(null);
     });
 
-    socket.on('ride_completed_event', () => {
-      console.log('Ride completed by driver!');
+    socket.on('ride_completed_event', (data: any) => {
+      console.log('Ride completed by driver!', data);
       setStatus('IDLE');
       setDriverLocation(null);
       setRideId(null);
+      if (data && data.fare) {
+        setReceiptFare(data.fare);
+      }
     });
 
     return () => {
@@ -245,6 +250,12 @@ export const RiderDashboard: React.FC = () => {
       </div>
 
       <RideHistory isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
+      
+      <ReceiptModal 
+        isOpen={!!receiptFare} 
+        fare={receiptFare} 
+        onClose={() => setReceiptFare(null)} 
+      />
 
     </div>
   );
