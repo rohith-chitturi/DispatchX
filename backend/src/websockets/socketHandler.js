@@ -105,7 +105,7 @@ export const initializeWebSockets = (io) => {
     });
 
     socket.on('ride_completed', ({ rideId, fare }) => {
-      io.to(`ride_${rideId}`).emit('ride_completed_event', { fare });
+      io.to(`ride_${rideId}`).emit('ride_completed_event', { rideId, fare });
     });
 
     // ----------------------------------------------------
