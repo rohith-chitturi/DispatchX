@@ -161,9 +161,10 @@ export const DriverDashboard: React.FC = () => {
       }
 
       // Notify backend via WebSocket so rider UI resets
-      socket?.emit('ride_completed', { rideId: activeRide.rideId });
+      socket?.emit('ride_completed', { rideId: activeRide.rideId, fare: data.fare });
       
       setActiveRide(null);
+      alert(`Dropoff Complete! You earned $${data.fare} for a ${data.distanceKm}km trip.`);
       
     } catch (error: any) {
       console.error('Failed to complete ride:', error);
