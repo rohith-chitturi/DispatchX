@@ -177,6 +177,19 @@ export class RideController {
       next(error);
     }
   }
+
+  /**
+   * GET /api/rides/history
+   * Retrieve ride history for the authenticated user (Rider or Driver).
+   */
+  static async getHistory(req, res, next) {
+    try {
+      const history = await Ride.getHistoryForUser(req.user.id);
+      return res.status(200).json(history);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 

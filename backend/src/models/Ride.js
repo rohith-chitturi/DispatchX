@@ -92,6 +92,20 @@ export class Ride {
     const { rows } = await query(text, [userId]);
     return rows[0];
   }
+
+  /**
+   * Retrieve the ride history for a specific user.
+   */
+  static async getHistoryForUser(userId) {
+    const text = `
+      SELECT * FROM rides 
+      WHERE rider_id = $1 OR driver_id = $1
+      ORDER BY created_at DESC 
+      LIMIT 50;
+    `;
+    const { rows } = await query(text, [userId]);
+    return rows;
+  }
 }
 
 

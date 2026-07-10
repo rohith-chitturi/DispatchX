@@ -17,5 +17,6 @@ router.post('/request', requireAuth, RideController.requestRide);
 router.post('/accept', requireAuth, RideController.acceptRide);
 router.post('/cancel', requireAuth, RideController.cancelRequest);
 router.post('/complete', requireAuth, RideController.completeRide);
+router.get('/history', requireAuth, RideController.getHistory);
 
 export default router;

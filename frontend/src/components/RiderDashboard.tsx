@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { RideHistory } from './RideHistory';
 
 // Fix Leaflet's default icon path issues in React/Vite by using custom Emoji Icons
 const riderIcon = new L.DivIcon({
@@ -35,6 +36,7 @@ export const RiderDashboard: React.FC = () => {
   const [status, setStatus] = useState<'IDLE' | 'SEARCHING' | 'ASSIGNED'>('IDLE');
   const [rideId, setRideId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   
   // Coordinates
   const [riderLocation] = useState<[number, number]>([DEFAULT_LAT, DEFAULT_LON]);
@@ -155,6 +157,9 @@ export const RiderDashboard: React.FC = () => {
             <div className={`w-3 h-3 rounded-full animate-pulse ${isConnected ? 'bg-dispatch-success' : 'bg-dispatch-danger'}`} />
             <span className="text-sm font-mono text-zinc-400">{isConnected ? 'CONNECTED' : 'DISCONNECTED'}</span>
           </div>
+          <button onClick={() => setIsHistoryOpen(true)} className="text-sm font-mono text-zinc-500 hover:text-white transition-colors mr-2">
+            HISTORY
+          </button>
           <button onClick={logout} className="text-sm font-mono text-zinc-500 hover:text-white transition-colors">
             LOGOUT
           </button>
@@ -238,6 +243,8 @@ export const RiderDashboard: React.FC = () => {
           )}
         </div>
       </div>
+
+      <RideHistory isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
 
     </div>
   );
