@@ -201,6 +201,30 @@ export class RideController {
       next(error);
     }
   }
+
+  /**
+   * POST /api/rides/rate
+   * Submit a 5-star rating for a completed ride.
+   */
+  static async rateRide(req, res, next) {
+    try {
+      const { rideId, rating } = req.body;
+      
+      if (!rideId || !rating || rating < 1 || rating > 5) {
+        return res.status(400).json({ error: 'Valid rideId and rating (1-5) required.' });
+      }
+
+      const ride = await Ride.rateRide(rideId, rating);
+      
+      if (!ride) {
+        return res.status(404).json({ error: 'Ride not found or not completed.' });
+      }
+
+      return res.status(200).json({ message: 'Rating submitted successfully' });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 
