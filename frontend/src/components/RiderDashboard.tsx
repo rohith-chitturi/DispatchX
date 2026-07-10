@@ -74,7 +74,9 @@ export const RiderDashboard: React.FC = () => {
       console.log('Ride completed by driver!', data);
       setStatus('IDLE');
       setDriverLocation(null);
-      setCompletedRideId(rideId); // Store before clearing
+      if (data && data.rideId) {
+        setCompletedRideId(data.rideId); // Use payload to avoid closure bugs
+      }
       setRideId(null);
       if (data && data.fare) {
         setReceiptFare(data.fare);
